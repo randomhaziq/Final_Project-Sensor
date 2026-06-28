@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time ESP32 Smart Environmental Monitoring, safety alerts, threshold adjustments, and data analytics control room dashboard.">
+    <meta name="keywords" content="IoT, ESP32, Environmental Monitoring, Flask, SQLite, Chart.js">
+    <title>Smart Environmental Safety Control Room</title>
+    
+    <!-- Google Fonts: Outfit (headings) and Inter (body) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-base: #060a13;
+            --bg-surface: #0c1322;
+            --bg-card: rgba(16, 25, 44, 0.65);
+            --border-glow: rgba(99, 102, 241, 0.12);
+            --border-default: rgba(255, 255, 255, 0.06);
+            --text-primary: #f8fafc;
+            --text-secondary: #64748b;
+            --text-muted: #475569;
+            
+            /* Status Colors */
+            --color-indigo: #6366f1;
+            --color-emerald: #10b981;
+            --color-amber: #f59e0b;
+            --color-rose: #f43f5e;
+            --color-cyan: #06b6d4;
+            
+            /* Glows */
+            --glow-indigo: rgba(99, 102, 241, 0.25);
+            --glow-emerald: rgba(16, 185, 129, 0.2);
+            --glow-amber: rgba(245, 158, 11, 0.2);
+            --glow-rose: rgba(244, 63, 94, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 24px;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 45%),
+                              radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.08) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 1560px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* HEADER SECTION */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 28px;
+            background: linear-gradient(135deg, #0e172a, #0b1120);
+            border: 1px solid var(--border-default);
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-title-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Pulse Logo */
+        .system-logo {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--color-indigo), var(--color-cyan));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .system-logo svg {
+            width: 22px;
+            height: 22px;
+            fill: white;
+        }
+
+        .header-text h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-text p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .timezone-badge {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--color-cyan);
+            background: rgba(6, 182, 212, 0.08);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(6, 182, 212, 0.15);
+        }
+
+        .device-status-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 18px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-default);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.online {
+            background-color: var(--color-emerald);
+            box-shadow: 0 0 12px var(--color-emerald);
+            animation: pulse-ring 2s infinite;
+        }
+
+        .status-dot.offline {
+            background-color: var(--color-rose);
+            box-shadow: 0 0 12px var(--color-rose);
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.5; }
+            100% { transform: scale(0.95); opacity: 1; }
+        }
+
+        /* GRID LAYOUT */
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 3fr 1.3fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .layout-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .main-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .sidebar-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* SENSOR METRICS CONTAINER */
+        .sensor-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .sensor-metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .sensor-metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Sidebar Drawer Styling */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: rgba(12, 19, 34, 0.98);
+            border-right: 1px solid var(--border-default);
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            transform: translateX(-100%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10000;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 9999;
+        }
+
+        .sidebar-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.2px;
+        }
+
+        .sidebar-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 26px;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.3s;
+        }
+
+        .sidebar-close-btn:hover {
+            color: white;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .sidebar-link:hover,
+        .sidebar-link.active {
+            color: white;
+            background: rgba(99, 102, 241, 0.08);
+            box-shadow: inset 3px 0 0 var(--color-indigo);
+        }
+
+        /* METRIC CARDS */
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, transparent);
+            transition: all 0.3s;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Dyn states dynamic highlights */
+        .sensor-card.safe::before { background: var(--color-emerald); }
+        .sensor-card.safe:hover { box-shadow: 0 12px 30px var(--glow-emerald); border-color: rgba(16, 185, 129, 0.25); }
+
+        .sensor-card.warning::before { background: var(--color-amber); }
+        .sensor-card.warning:hover { box-shadow: 0 12px 30px var(--glow-amber); border-color: rgba(245, 158, 11, 0.25); }
+
+        .sensor-card.danger::before { background: var(--color-rose); }
+        .sensor-card.danger:hover { box-shadow: 0 12px 30px var(--glow-rose); border-color: rgba(244, 63, 94, 0.25); }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-label-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .icon-wrapper {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-default);
+            transition: all 0.3s;
+        }
+
+        .icon-wrapper svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .sensor-card.safe .icon-wrapper { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.15); fill: var(--color-emerald); stroke: var(--color-emerald); }
+        .sensor-card.warning .icon-wrapper { background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.15); fill: var(--color-amber); stroke: var(--color-amber); }
+        .sensor-card.danger .icon-wrapper { background: rgba(244, 63, 94, 0.05); border-color: rgba(244, 63, 94, 0.15); fill: var(--color-rose); stroke: var(--color-rose); }
+
+        .metric-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .metric-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-badge.safe { background: rgba(16, 185, 129, 0.1); color: var(--color-emerald); border: 1px solid rgba(16, 185, 129, 0.15); }
+        .metric-badge.warning { background: rgba(245, 158, 11, 0.1); color: var(--color-amber); border: 1px solid rgba(245, 158, 11, 0.15); }
+        .metric-badge.danger { background: rgba(244, 63, 94, 0.1); color: var(--color-rose); border: 1px solid rgba(244, 63, 94, 0.15); }
+
+        .metric-body {
+            margin-top: 16px;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .metric-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Progress bars under readings */
+        .metric-progress-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 2px;
+            margin-top: 14px;
+            overflow: hidden;
+        }
+
+        .metric-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.8s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .sensor-card.safe .metric-progress-bar { background-color: var(--color-emerald); }
+        .sensor-card.warning .metric-progress-bar { background-color: var(--color-amber); }
+        .sensor-card.danger .metric-progress-bar { background-color: var(--color-rose); }
+
+        /* CHARTS CONTAINER */
+        .panel-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-default);
+            padding-bottom: 12px;
+        }
+
+        .panel-heading h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-heading h3 svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: var(--color-indigo);
+            stroke-width: 2;
+        }
+
+        .charts-flex-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .charts-flex-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-box {
+            background: rgba(15, 23, 42, 0.35);
+            border: 1px solid var(--border-default);
+            border-radius: 16px;
+            padding: 16px;
+            height: 280px;
+            position: relative;
+        }
+
+        .chart-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        /* SIDEBAR Cockpit Controls */
+        .form-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .toggle-switch-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 12px;
+            border: 1px solid var(--border-default);
+            transition: all 0.3s;
+        }
+
+        .toggle-switch-wrapper:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .toggle-label-group h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .toggle-label-group p {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* IOS Switch styling */
+        .ios-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+
+        .ios-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .ios-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.05);
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 30px;
+            border: 1px solid var(--border-default);
+        }
+
+        .ios-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #f8fafc;
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        input:checked + .ios-slider {
+            background-color: var(--color-emerald);
+            border-color: var(--color-emerald);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        input:checked + .ios-slider:before {
+            transform: translateX(24px);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-default);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--color-indigo);
+            box-shadow: 0 0 12px var(--glow-indigo);
+            background: rgba(15, 23, 42, 0.7);
+        }
+
+        .input-icon-label {
+            position: absolute;
+            right: 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .btn-gradient {
+            background: linear-gradient(135deg, var(--color-indigo), #4f46e5);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            width: 100%;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.15);
+        }
+
+        .btn-gradient:hover {
+            opacity: 0.95;
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-gradient:active {
+            transform: translateY(1px);
+        }
+
+        /* SYSTEM INSIGHTS SECTION */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-badge-card {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 14px 12px;
+            text-align: center;
+        }
+
+        .stat-badge-card h4 {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .stat-badge-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-badge-desc {
+            font-size: 9px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* RECOMMENDATIONS TERMINAL */
+        .terminal-recommendation {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            background: rgba(99, 102, 241, 0.05);
+            border-left: 4px solid var(--color-indigo);
+            border-radius: 12px;
+            padding: 16px;
+            border-top: 1px solid var(--border-default);
+            border-right: 1px solid var(--border-default);
+            border-bottom: 1px solid var(--border-default);
+            transition: all 0.3s;
+        }
+
+        .terminal-recommendation.rose-alert {
+            background: rgba(244, 63, 94, 0.04);
+            border-left-color: var(--color-rose);
+        }
+
+        .terminal-recommendation.amber-alert {
+            background: rgba(245, 158, 11, 0.04);
+            border-left-color: var(--color-amber);
+        }
+
+        .terminal-recommendation-content h5 {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .terminal-recommendation-content p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* DATA LOGS TABLE */
+        .table-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-outline:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .btn-primary-action {
+            background: linear-gradient(135deg, var(--color-indigo), #4f46e5);
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-primary-action:hover {
+            opacity: 0.95;
+            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary-action:active {
+            transform: translateY(1px);
+        }
+
+        .btn-csv-export {
+            background: rgba(6, 182, 212, 0.08);
+            color: var(--color-cyan);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-csv-export:hover {
+            background: rgba(6, 182, 212, 0.18);
+            border-color: var(--color-cyan);
+            color: white;
+            box-shadow: 0 4px 10px rgba(6, 182, 212, 0.15);
+        }
+
+        #device-switcher option {
+            background-color: #0c1322 !important;
+            color: #f8fafc !important;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border-default);
+            background: rgba(15, 23, 42, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 12px;
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.5);
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-default);
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            color: var(--text-primary);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .td-badge {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            text-transform: uppercase;
+        }
+
+        .td-badge.normal { background: rgba(16, 185, 129, 0.1); color: var(--color-emerald); }
+        .td-badge.warning { background: rgba(245, 158, 11, 0.1); color: var(--color-amber); }
+        .td-badge.critical { background: rgba(244, 63, 94, 0.1); color: var(--color-rose); }
+
+        /* TOAST NOTIFICATION */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            padding: 14px 28px;
+            border-radius: 12px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateY(180%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10000;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast.success { border-left: 4px solid var(--color-emerald); color: var(--text-primary); }
+        .toast.error { border-left: 4px solid var(--color-rose); color: var(--text-primary); }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGATION DRAWER -->
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar(false)"></div>
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">Environmental IoT Gateway</span>
+            <button class="sidebar-close-btn" onclick="toggleSidebar(false)">×</button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard?device_id={{ device_id }}" class="sidebar-link active">
+                <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Dashboard
+            </a>
+            <a href="/devices" class="sidebar-link">
+                <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+                Manage Devices
+            </a>
+            <a href="#" onclick="confirmLogout(event)" class="sidebar-link">
+                <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                Logout
+            </a>
+        </nav>
+    </div>
+
+    <div class="container">
+        
+        <!-- HEADER -->
+        <header>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <!-- Sidebar trigger button -->
+                <button class="hamburger-btn" onclick="toggleSidebar(true)" style="background: transparent; border: 1px solid var(--border-default); border-radius: 10px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; color: white; margin-right: 4px;">
+                    <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.5;"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                
+                <div class="header-title-container">
+                    <div class="system-logo">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2L2 22h20L12 2zm0 3.99L19.53 19H4.47L12 5.99zM13 16h-2v2h2v-2zm0-6h-2v4h2v-4z"/>
+                        </svg>
+                    </div>
+                    <div class="header-text">
+                        <h1>{{ device_name }} Safety Control Room</h1>
+                        <p>Telemetry stream for node ID: <code style="color: var(--color-indigo); font-weight: 600;">{{ device_id }}</code> • User: <strong>{{ username }}</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <!-- Device Switcher Dropdown -->
+                <div class="device-status-badge" style="padding: 4px 10px; background: rgba(15, 23, 42, 0.6); display: flex; align-items: center;">
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); font-weight: 700; margin-right: 6px;">Devices:</span>
+                    <select id="device-switcher" onchange="window.location.href='/dashboard?device_id='+this.value" style="background: transparent; color: white; border: none; font-weight: 600; cursor: pointer; font-size: 12px; outline: none; padding-right: 12px;">
+                        <option value="" disabled selected>Loading...</option>
+                    </select>
+                </div>
+                <button class="btn-primary-action" onclick="window.location.href='/devices'">Add New Device</button>
+                <span id="tz-badge" class="timezone-badge">Timezone: UTC</span>
+                <div class="device-status-badge">
+                    <span id="device-dot" class="status-dot offline"></span>
+                    <span id="device-status-text">Device Disconnected</span>
+                </div>
+            </div>
+
+        </header>
+
+        <!-- DASHBOARD GRID -->
+        <div class="layout-grid">
+            
+            <!-- LEFT COLUMN: SENSOR METRICS & GRAPHS -->
+            <div class="main-column">
+                
+                <!-- SENSOR READINGS -->
+                <div class="sensor-metrics-grid">
+                    
+                    <!-- Temperature Card -->
+                    <div id="temp-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Temperature</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="temp-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="temp-badge" class="metric-badge safe">Safe</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="temp-val" class="metric-value">--.-</span>
+                            <span class="metric-unit">°C</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="temp-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Humidity Card -->
+                    <div id="hum-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Humidity</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="hum-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="hum-badge" class="metric-badge safe">Safe</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="hum-val" class="metric-value">--.-</span>
+                            <span class="metric-unit">%</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="hum-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Gas Card -->
+                    <div id="gas-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Gas Level</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="gas-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="gas-badge" class="metric-badge safe">Safe</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="gas-val" class="metric-value">---</span>
+                            <span class="metric-unit">ADC</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="gas-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Light Card -->
+                    <div id="light-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Light (LDR)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="light-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="light-badge" class="metric-badge safe">Bright</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="light-val" class="metric-value">---</span>
+                            <span class="metric-unit">ADC</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="light-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Sound Card -->
+                    <div id="sound-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Sound Level</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="sound-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="sound-badge" class="metric-badge safe">Safe</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="sound-val" class="metric-value">---</span>
+                            <span class="metric-unit">ADC</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="sound-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Distance Card -->
+                    <div id="dist-card" class="glass-card sensor-card safe">
+                        <div class="metric-header">
+                            <div class="metric-label-container">
+                                <div class="icon-wrapper">
+                                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Proximity</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="dist-dot" class="status-dot safe" style="width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px var(--color-emerald); background-color: var(--color-emerald);"></span>
+                                <span id="dist-badge" class="metric-badge safe">Clear</span>
+                            </div>
+                        </div>
+                        <div class="metric-body">
+                            <span id="dist-val" class="metric-value">--.-</span>
+                            <span class="metric-unit">cm</span>
+                        </div>
+                        <div class="metric-progress-container">
+                            <div id="dist-progress" class="metric-progress-bar"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- CHARTS ROW -->
+                <div class="glass-card">
+                    <div class="panel-heading">
+                        <h3>
+                            <svg viewBox="0 0 24 24"><path d="M3 3v18h18M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                            Real-Time Data Visualization Cockpit
+                        </h3>
+                    </div>
+                    <div class="charts-flex-grid">
+                        <div class="chart-box">
+                            <div class="chart-label">Temperature & Humidity Trends</div>
+                            <canvas id="tempHumChart"></canvas>
+                        </div>
+                        <div class="chart-box">
+                            <div class="chart-label">Gas & Ambient Noise Levels</div>
+                            <canvas id="gasSoundChart"></canvas>
+                        </div>
+                        <div class="chart-box">
+                            <div class="chart-label">LDR Light Intensity</div>
+                            <canvas id="lightChart"></canvas>
+                        </div>
+                        <div class="chart-box">
+                            <div class="chart-label">Ultrasonic Range Finder</div>
+                            <canvas id="distChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN: CONTROLS & ANALYTICS -->
+            <div class="sidebar-column">
+                
+                <!-- COCKPIT CONTROL SWITCHES -->
+                <div class="glass-card">
+                    <div class="panel-heading">
+                        <h3>
+                            <svg viewBox="0 0 24 24"><path d="M21 9.5H3M21 14.5H3M10 3v18M14 3v18"/></svg>
+                            Manual Controls
+                        </h3>
+                    </div>
+                    <div class="form-panel">
+                        <div class="toggle-switch-wrapper">
+                            <div class="toggle-label-group">
+                                <h4>Relay Actuator Override</h4>
+                                <p>Force exhaust fan / emergency power</p>
+                            </div>
+                            <label class="ios-switch">
+                                <input type="checkbox" id="actuator-toggle" onchange="toggleActuator(this.checked)">
+                                <span class="ios-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-switch-wrapper">
+                            <div class="toggle-label-group">
+                                <h4>Mute Alarm Siren</h4>
+                                <p>Silences the buzzer warnings temporarily</p>
+                            </div>
+                            <label class="ios-switch">
+                                <input type="checkbox" id="mute-toggle" onchange="toggleMute(this.checked)">
+                                <span class="ios-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC THRESHOLDS FORM -->
+                <div class="glass-card">
+                    <div class="panel-heading">
+                        <h3>
+                            <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/></svg>
+                            Threshold Boundaries
+                        </h3>
+                    </div>
+                    <form id="settings-form" class="form-panel" onsubmit="saveSettings(event)">
+                        <div class="input-group">
+                            <label for="temp_threshold">Max Temperature Limit</label>
+                            <div class="input-wrapper">
+                                <input type="number" step="0.1" id="temp_threshold" required>
+                                <span class="input-icon-label">°C</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="gas_threshold">Gas Leak Limit</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="gas_threshold" required>
+                                <span class="input-icon-label">ADC</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="upload_interval">Upload Speed</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="upload_interval" required>
+                                <span class="input-icon-label">Sec</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-gradient">Sync System Settings</button>
+                    </form>
+                </div>
+
+                <!-- ANALYTICAL RECOMMENDATIONS & METRICS -->
+                <div class="glass-card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="panel-heading">
+                        <h3>
+                            <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                            Insights & Safety Advisor
+                        </h3>
+                    </div>
+                    
+                    <!-- Historical aggregates -->
+                    <div class="analytics-grid">
+                        <div class="stat-badge-card">
+                            <h4>Avg Temp</h4>
+                            <div id="insight-avg-temp" class="stat-badge-value">--.-°C</div>
+                            <div class="stat-badge-desc">Last 20 updates</div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <h4>Peak Gas</h4>
+                            <div id="insight-max-gas" class="stat-badge-value">---</div>
+                            <div class="stat-badge-desc">Max logged value</div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <h4>Violation Count</h4>
+                            <div id="insight-alert-count" class="stat-badge-value">0</div>
+                            <div class="stat-badge-desc">Threshold breaches</div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <h4>My Devices</h4>
+                            <div id="insight-total-devices" class="stat-badge-value">0</div>
+                            <div class="stat-badge-desc">Registered profiles</div>
+                        </div>
+                    </div>
+
+                    <!-- AI Safety Advisor Box -->
+                    <div id="safety-recommendation-box" class="terminal-recommendation" style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 80px;">
+                        <div class="terminal-recommendation-content">
+                            <h5 id="safety-status-title">System Analysis</h5>
+                            <p id="safety-status-desc" style="margin-bottom: 0;">Acquiring sensor parameters to run rule-based hazard classifications...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- TABLE OF HISTORICAL DATA -->
+        <div class="glass-card">
+            <div class="table-panel-header">
+                <div class="panel-heading" style="margin-bottom: 0; border: none; padding-bottom: 0;">
+                    <h3>
+                        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        Telemetry Logs (Latest 20 Records)
+                    </h3>
+                </div>
+                <div class="table-actions">
+                    <button class="btn-csv-export" onclick="exportCSV()">Export to CSV</button>
+                </div>
+            </div>
+            
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Local Time (GMT Sync)</th>
+                            <th>Device ID</th>
+                            <th>Temp</th>
+                            <th>Humidity</th>
+                            <th>Gas</th>
+                            <th>Light</th>
+                            <th>Sound</th>
+                            <th>Distance</th>
+                            <th>Safety Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 24px;">Waiting for telemetry stream...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- TOAST ELEMENT -->
+    <div id="toast" class="toast">
+        <span id="toast-message">Settings synced successfully</span>
+    </div>
+
+    <script>
+        const currentDeviceId = "{{ device_id }}";
+        let tempHumChart, gasSoundChart, lightChart, distChart;
+        let lastReceivedTimestamp = null;
+        let currentUploadInterval = 2; // default
+        let cachedLogs = []; // for csv export
+
+        // Automatically configure Local Browser Timezone label
+        document.addEventListener("DOMContentLoaded", () => {
+            const tzOffset = -new Date().getTimezoneOffset() / 60;
+            const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            document.getElementById('tz-badge').textContent = `Timezone: ${tzName} (GMT${tzOffset >= 0 ? '+' : ''}${tzOffset})`;
+        });
+
+        // Format raw UTC timestamp string from database into browser's local GMT timezone
+        function formatLocalTime(utcString) {
+            if (!utcString) return "N/A";
+            const date = new Date(utcString.replace(" ", "T") + "Z");
+            if (isNaN(date.getTime())) return utcString;
+            
+            return date.toLocaleString(undefined, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            });
+        }
+
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            msgEl.textContent = message;
+            toast.className = 'toast show ' + (isSuccess ? 'success' : 'error');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        // Initialize styled Chart.js instances
+        function initCharts() {
+            const chartDefaults = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#94a3b8', font: { size: 10, weight: '500' } } }
+                },
+                scales: {
+                    x: { 
+                        grid: { color: 'rgba(255, 255, 255, 0.02)' },
+                        ticks: { color: '#475569', font: { size: 9 } }
+                    },
+                    y: { 
+                        grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                        ticks: { color: '#475569', font: { size: 9 } }
+                    }
+                }
+            };
+
+            tempHumChart = new Chart(document.getElementById('tempHumChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Temp (°C)', data: [], borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.03)', borderWidth: 2, tension: 0.25, yAxisID: 'y' },
+                        { label: 'Humid (%)', data: [], borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.03)', borderWidth: 2, tension: 0.25, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    ...chartDefaults,
+                    scales: {
+                        x: { grid: { color: 'rgba(255, 255, 255, 0.02)' }, ticks: { color: '#475569', font: { size: 9 } } },
+                        y: { position: 'left', grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#f43f5e' } },
+                        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#06b6d4' } }
+                    }
+                }
+            });
+
+            gasSoundChart = new Chart(document.getElementById('gasSoundChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Gas (ADC)', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.03)', borderWidth: 2, tension: 0.25 },
+                        { label: 'Sound (ADC)', data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.03)', borderWidth: 2, tension: 0.25 }
+                    ]
+                },
+                options: chartDefaults
+            });
+
+            lightChart = new Chart(document.getElementById('lightChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{ label: 'Light (ADC)', data: [], borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.03)', borderWidth: 2, tension: 0.25 }]
+                },
+                options: chartDefaults
+            });
+
+            distChart = new Chart(document.getElementById('distChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{ label: 'Range (cm)', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.03)', borderWidth: 2, tension: 0.25 }]
+                },
+                options: chartDefaults
+            });
+        }
+
+        // Poll API/latest to update real-time sensor panels
+        async function fetchLatest() {
+            try {
+                const res = await fetch(`/latest?device_id=${currentDeviceId}`);
+                const data = await res.json();
+                if (!data) return;
+
+                // 1. Evaluate connection health state
+                if (data.sensor) {
+                    const timestampStr = data.sensor.timestamp;
+                    lastReceivedTimestamp = new Date(timestampStr.replace(" ", "T") + "Z");
+                    const timeDiffSec = (new Date() - lastReceivedTimestamp) / 1000;
+                    const onlineThreshold = (currentUploadInterval * 3) + 2;
+
+                    const dot = document.getElementById('device-dot');
+                    const txt = document.getElementById('device-status-text');
+
+                    if (timeDiffSec <= onlineThreshold) {
+                        dot.className = 'status-dot online';
+                        txt.textContent = 'Device Connected';
+                    } else {
+                        dot.className = 'status-dot offline';
+                        txt.textContent = `Offline (Last active: ${formatLocalTime(timestampStr)})`;
+                    }
+
+                    // Update UI numeric values
+                    document.getElementById('temp-val').textContent = data.sensor.temperature.toFixed(1);
+                    document.getElementById('hum-val').textContent = data.sensor.humidity.toFixed(1);
+                    document.getElementById('gas-val').textContent = data.sensor.gas;
+                    document.getElementById('light-val').textContent = data.sensor.light;
+                    document.getElementById('sound-val').textContent = data.sensor.sound;
+                    document.getElementById('dist-val').textContent = data.sensor.distance.toFixed(1);
+                }
+
+                // 2. Load and bind active DB configs to threshold forms
+                if (data.settings) {
+                    currentUploadInterval = data.settings.upload_interval;
+                    
+                    if (document.activeElement !== document.getElementById('temp_threshold')) {
+                        document.getElementById('temp_threshold').value = data.settings.temp_threshold;
+                    }
+                    if (document.activeElement !== document.getElementById('gas_threshold')) {
+                        document.getElementById('gas_threshold').value = data.settings.gas_threshold;
+                    }
+                    if (document.activeElement !== document.getElementById('upload_interval')) {
+                        document.getElementById('upload_interval').value = data.settings.upload_interval;
+                    }
+
+                    document.getElementById('actuator-toggle').checked = data.settings.actuator_status === 1;
+                    document.getElementById('mute-toggle').checked = data.settings.alarm_muted === 1;
+
+                    // Classify alerts & update progress meters
+                    classifySensors(data.sensor, data.settings);
+                }
+            } catch (err) {
+                console.error("Latest API fetch failure: ", err);
+            }
+        }
+
+        // Apply rules to render status highlights, progress meters, and dynamic status dots
+        function classifySensors(sensor, settings) {
+            if (!sensor || !settings) return;
+
+            // Helper to update progress, card status, and dynamic status dots
+            function updateCard(cardId, badgeId, dotId, progressId, value, limit, type = 'normal-limits') {
+                const card = document.getElementById(cardId);
+                const badge = document.getElementById(badgeId);
+                const dot = document.getElementById(dotId);
+                const progress = document.getElementById(progressId);
+                
+                let percent = Math.min((value / limit) * 100, 100);
+                if (percent < 0) percent = 0;
+                progress.style.width = `${percent}%`;
+
+                let statusClass = 'safe';
+                let statusText = 'Safe';
+
+                if (type === 'temp') {
+                    if (value >= limit) {
+                        statusClass = 'danger';
+                        statusText = 'Danger';
+                    } else if (value >= limit - 3) {
+                        statusClass = 'warning';
+                        statusText = 'Warning';
+                    } else {
+                        statusClass = 'safe';
+                        statusText = 'Safe';
+                    }
+                } else if (type === 'gas') {
+                    if (value >= limit) {
+                        statusClass = 'danger';
+                        statusText = 'Danger';
+                    } else if (value >= limit * 0.7) {
+                        statusClass = 'warning';
+                        statusText = 'Warning';
+                    } else {
+                        statusClass = 'safe';
+                        statusText = 'Safe';
+                    }
+                } else if (type === 'sound') {
+                    if (value >= 800) {
+                        statusClass = 'danger';
+                        statusText = 'Very Loud';
+                    } else if (value >= 500) {
+                        statusClass = 'warning';
+                        statusText = 'Noisy';
+                    } else {
+                        statusClass = 'safe';
+                        statusText = 'Quiet';
+                    }
+                } else if (type === 'dist') {
+                    let distPercent = Math.max(100 - (value / 50) * 100, 0);
+                    progress.style.width = `${distPercent}%`;
+                    if (value < 10.0) {
+                        statusClass = 'danger';
+                        statusText = 'Critical';
+                    } else if (value < 25.0) {
+                        statusClass = 'warning';
+                        statusText = 'Warning';
+                    } else {
+                        statusClass = 'safe';
+                        statusText = 'Clear';
+                    }
+                } else if (type === 'light') {
+                    if (value < 500) {
+                        statusClass = 'safe';
+                        statusText = 'Bright';
+                    } else {
+                        statusClass = 'warning';
+                        statusText = 'Dark';
+                    }
+                } else {
+                    if (value >= limit) {
+                        statusClass = 'danger';
+                        statusText = 'Danger';
+                    } else {
+                        statusClass = 'safe';
+                        statusText = 'Normal';
+                    }
+                }
+
+                card.className = `glass-card sensor-card ${statusClass}`;
+                badge.className = `metric-badge ${statusClass}`;
+                badge.textContent = statusText;
+
+                // Update dynamic indicator dot colors and glows
+                if (statusClass === 'danger') {
+                    dot.style.backgroundColor = 'var(--color-rose)';
+                    dot.style.boxShadow = '0 0 10px var(--color-rose)';
+                } else if (statusClass === 'warning') {
+                    dot.style.backgroundColor = 'var(--color-amber)';
+                    dot.style.boxShadow = '0 0 10px var(--color-amber)';
+                } else {
+                    dot.style.backgroundColor = 'var(--color-emerald)';
+                    dot.style.boxShadow = '0 0 10px var(--color-emerald)';
+                }
+            }
+
+            updateCard('temp-card', 'temp-badge', 'temp-dot', 'temp-progress', sensor.temperature, settings.temp_threshold, 'temp');
+            updateCard('hum-card', 'hum-badge', 'hum-dot', 'hum-progress', sensor.humidity, 100, 'normal-limits');
+            updateCard('gas-card', 'gas-badge', 'gas-dot', 'gas-progress', sensor.gas, settings.gas_threshold, 'gas');
+            updateCard('light-card', 'light-badge', 'light-dot', 'light-progress', sensor.light, 4095, 'light');
+            updateCard('sound-card', 'sound-badge', 'sound-dot', 'sound-progress', sensor.sound, 1024, 'sound');
+            updateCard('dist-card', 'dist-badge', 'dist-dot', 'dist-progress', sensor.distance, 100, 'dist');
+
+            // Render Advisor terminal suggestions
+            const box = document.getElementById('safety-recommendation-box');
+            const title = document.getElementById('safety-status-title');
+            const desc = document.getElementById('safety-status-desc');
+
+            if (sensor.gas >= settings.gas_threshold) {
+                box.className = 'terminal-recommendation rose-alert';
+                title.textContent = 'STATUS: CRITICAL GAS LEAK';
+                title.style.color = 'var(--color-rose)';
+                desc.textContent = `Gas level (${sensor.gas}) has breached your safety configuration limit (${settings.gas_threshold}). Exhaust Fan Relay triggered. Evacuate zone immediately and investigate.`;
+            } else if (sensor.temperature >= settings.temp_threshold) {
+                box.className = 'terminal-recommendation rose-alert';
+                title.textContent = 'STATUS: EXTREME OVERHEAT';
+                title.style.color = 'var(--color-rose)';
+                desc.textContent = `Room Temp (${sensor.temperature.toFixed(1)}°C) exceeds safety limit (${settings.temp_threshold}°C). Forced Auxiliary Fan relay ON to lower temperature.`;
+            } else if (sensor.temperature > 35.0 && sensor.humidity < 40.0) {
+                box.className = 'terminal-recommendation amber-alert';
+                title.textContent = 'STATUS: HOT AND DRY ROOM';
+                title.style.color = 'var(--color-amber)';
+                desc.textContent = `Warning: High temperature (${sensor.temperature.toFixed(1)}°C) with dry air (${sensor.humidity.toFixed(1)}%). Fans are active. Misting system recommendation enabled.`;
+            } else if (sensor.distance < 10.0) {
+                box.className = 'terminal-recommendation amber-alert';
+                title.textContent = 'STATUS: OBSTACLE INTRUSION';
+                title.style.color = 'var(--color-amber)';
+                desc.textContent = `Intruder Alert: Barrier detected close to hardware (${sensor.distance.toFixed(1)} cm). Check perimeter zone for blockages.`;
+            } else {
+                box.className = 'terminal-recommendation';
+                title.textContent = 'STATUS: ENVIRONMENT SECURE';
+                title.style.color = 'var(--color-emerald)';
+                desc.textContent = `All parameters are healthy. Alarm buzzers and relays are running under automatic backup standby protocols.`;
+            }
+        }
+
+        // Fetch logs to refresh charts and table
+        async function fetchHistoryAndTrends() {
+            try {
+                const res = await fetch(`/data?device_id=${currentDeviceId}`);
+                const dataset = await res.json();
+                if (!dataset || dataset.length === 0) return;
+
+                cachedLogs = dataset; // cache
+
+                const labels = dataset.map(d => formatLocalTime(d.timestamp));
+
+                // 1. Update charts
+                tempHumChart.data.labels = labels;
+                tempHumChart.data.datasets[0].data = dataset.map(d => d.temperature);
+                tempHumChart.data.datasets[1].data = dataset.map(d => d.humidity);
+                tempHumChart.update('none');
+
+                gasSoundChart.data.labels = labels;
+                gasSoundChart.data.datasets[0].data = dataset.map(d => d.gas);
+                gasSoundChart.data.datasets[1].data = dataset.map(d => d.sound);
+                gasSoundChart.update('none');
+
+                lightChart.data.labels = labels;
+                lightChart.data.datasets[0].data = dataset.map(d => d.light);
+                lightChart.update('none');
+
+                distChart.data.labels = labels;
+                distChart.data.datasets[0].data = dataset.map(d => d.distance);
+                distChart.update('none');
+
+                // 2. Populate data table (newest logs on top)
+                const tbody = document.getElementById('log-table-body');
+                let rowsHtml = '';
+                const tableLogs = [...dataset].reverse();
+
+                tableLogs.forEach(row => {
+                    let statusLabel = row.status || 'Normal';
+                    let statusClass = 'normal';
+                    if (statusLabel === 'Warning') statusClass = 'warning';
+                    if (statusLabel === 'Critical' || statusLabel === 'Danger') statusClass = 'critical';
+
+                    rowsHtml += `
+                        <tr>
+                            <td><strong>${formatLocalTime(row.timestamp)}</strong></td>
+                            <td><code style="color: var(--color-indigo); font-weight: 600;">${row.device_id || 'ESP32_Env_Monitor'}</code></td>
+                            <td>${row.temperature.toFixed(1)}°C</td>
+                            <td>${row.humidity.toFixed(1)}%</td>
+                            <td>${row.gas}</td>
+                            <td>${row.light}</td>
+                            <td>${row.sound}</td>
+                            <td>${row.distance.toFixed(1)} cm</td>
+                            <td><span class="td-badge ${statusClass}">${statusLabel}</span></td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = rowsHtml;
+
+                // 3. Compute stat highlights
+                calculateInsights(dataset);
+
+            } catch (err) {
+                console.error("Telemetry history fetch error: ", err);
+            }
+        }
+
+        // Calculate Average, Peak and Alert counts
+        function calculateInsights(dataset) {
+            if (!dataset || dataset.length === 0) return;
+
+            const avgTemp = dataset.reduce((sum, d) => sum + d.temperature, 0) / dataset.length;
+            document.getElementById('insight-avg-temp').textContent = `${avgTemp.toFixed(1)}°C`;
+
+            const maxGas = Math.max(...dataset.map(d => d.gas));
+            document.getElementById('insight-max-gas').textContent = maxGas;
+
+            const tempTh = parseFloat(document.getElementById('temp_threshold').value) || 35.0;
+            const gasTh = parseInt(document.getElementById('gas_threshold').value) || 300;
+
+            let alerts = 0;
+            dataset.forEach(row => {
+                if (row.temperature >= tempTh) alerts++;
+                if (row.gas >= gasTh) alerts++;
+            });
+            document.getElementById('insight-alert-count').textContent = alerts;
+        }
+
+        // Toggle manual switch overrides
+        async function toggleActuator(isChecked) {
+            try {
+                const res = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        device_id: currentDeviceId,
+                        actuator_status: isChecked ? 1 : 0 
+                    })
+                });
+                const r = await res.json();
+                if (r.status === 'success') {
+                    showToast(`Manual Actuator Trigger: ${isChecked ? 'ON' : 'OFF'}`);
+                } else {
+                    showToast('Failed to trigger actuator override', false);
+                }
+            } catch (err) {
+                showToast('Network error toggling override', false);
+            }
+        }
+
+        async function toggleMute(isChecked) {
+            try {
+                const res = await fetch('/api/mute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: currentDeviceId,
+                        alarm_muted: isChecked ? 1 : 0
+                    })
+                });
+                const r = await res.json();
+                if (r.status === 'success') {
+                    showToast(`Alarm Warning Siren: ${isChecked ? 'MUTED' : 'ACTIVE'}`);
+                } else {
+                    showToast('Failed to toggle alarm mute', false);
+                }
+            } catch (err) {
+                showToast('Network error toggling alarm mute', false);
+            }
+        }
+
+        // Save threshold values
+        async function saveSettings(event) {
+            event.preventDefault();
+            const tempVal = parseFloat(document.getElementById('temp_threshold').value);
+            const gasVal = parseInt(document.getElementById('gas_threshold').value);
+            const uploadIntVal = parseInt(document.getElementById('upload_interval').value);
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: currentDeviceId,
+                        temp_threshold: tempVal,
+                        gas_threshold: gasVal,
+                        upload_interval: uploadIntVal
+                    })
+                });
+                const r = await res.json();
+                if (r.status === 'success') {
+                    showToast('Gateway configurations synced successfully');
+                    currentUploadInterval = uploadIntVal;
+                    fetchLatest();
+                    fetchHistoryAndTrends();
+                } else {
+                    showToast(`Sync failed: ${r.error}`, false);
+                }
+            } catch (err) {
+                showToast('Database gateway timeout', false);
+            }
+        }
+
+        // CSV export tool
+        function exportCSV() {
+            if (cachedLogs.length === 0) {
+                showToast('No logs available to export', false);
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Device ID,Temperature,Humidity,Gas,Light,Sound,Distance,Safety Status\n";
+
+            cachedLogs.forEach(row => {
+                csvContent += `"${formatLocalTime(row.timestamp)}","${row.device_id || 'ESP32_Env_Monitor'}",${row.temperature},${row.humidity},${row.gas},${row.light},${row.sound},${row.distance},"${row.status || 'Normal'}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "telemetry_logs_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Telemetry log exported as CSV');
+        }
+
+        // Fetch device list into the switcher dropdown and set Total Devices KPI
+        async function loadDeviceSwitcher() {
+            try {
+                const res = await fetch('/api/devices');
+                const devices = await res.json();
+                if (res.status === 200) {
+                    const switcher = document.getElementById('device-switcher');
+                    let html = '';
+                    devices.forEach(dev => {
+                        const isCurrent = dev.device_id === currentDeviceId;
+                        html += `<option value="${dev.device_id}" ${isCurrent ? 'selected' : ''}>${dev.device_name}</option>`;
+                    });
+                    switcher.innerHTML = html;
+
+                    const kpi = document.getElementById('insight-total-devices');
+                    if (kpi) {
+                        kpi.textContent = devices.length;
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading device switcher:", err);
+            }
+        }
+
+        function confirmLogout(event) {
+            if (event) event.preventDefault();
+            if (confirm("Are you sure you want to logout?")) {
+                window.location.href = '/logout';
+            }
+        }
+
+        function toggleSidebar(open) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (open) {
+                sidebar.classList.add('open');
+                overlay.classList.add('open');
+            } else {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('open');
+            }
+        }
+
+        // Initial setup
+        initCharts();
+        loadDeviceSwitcher();
+        fetchLatest();
+        fetchHistoryAndTrends();
+
+        // Real-time polling frequency matched to gateway speed (2 seconds)
+        setInterval(() => {
+            fetchLatest();
+            fetchHistoryAndTrends();
+        }, 2000);
+    </script>
+</body>
+</html>

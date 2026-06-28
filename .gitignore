@@ -1,0 +1,11 @@
+# Word Reports
+final_report.docx
+
+# Databases
+iot_data.db
+
+# Caches and builds
+__pycache__/
+*.pyc
+.vscode/
+.idea/
